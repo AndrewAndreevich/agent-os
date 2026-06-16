@@ -38,7 +38,7 @@ router.post('/message', (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  const send = d => res.write(`data: ${JSON.stringify(d)}\n\n`);
+  const send = d => { res.write(`data: ${JSON.stringify(d)}\n\n`); if (res.flush) res.flush(); };
 
   pm.sendMessage({
     conversationId: conversation_id,

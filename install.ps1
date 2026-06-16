@@ -10,7 +10,7 @@ param(
   [string]$Capabilities    = "base"
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 function Write-OK   { param($m) Write-Host "[OK] $m" -ForegroundColor Green }
