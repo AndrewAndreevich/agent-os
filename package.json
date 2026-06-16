@@ -1,0 +1,19 @@
+{
+  "name": "agent-os",
+  "version": "0.1.0",
+  "description": "Distributed AI agent orchestration system",
+  "main": "server/index.js",
+  "scripts": {
+    "server": "node server/index.js",
+    "client": "node client/index.js",
+    "validate": "node scripts/validate-env.js",
+    "register": "node scripts/register-agent.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {}
+}

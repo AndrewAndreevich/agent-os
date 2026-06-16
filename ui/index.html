@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgentOS</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2128;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 20px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 18px; margin: 0; font-family: var(--mono); }
+  header h1 span { color: var(--accent); }
+  .conn { margin-left: auto; font-size: 12px; color: var(--muted); display:flex; align-items:center; gap:6px;}
+  .conn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); }
+  .conn.online .dot { background: var(--green); }
+
+  nav { display: flex; gap: 4px; padding: 0 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  nav button {
+    background: none; border: none; color: var(--muted);
+    padding: 12px 16px; cursor: pointer; font-size: 14px;
+    border-bottom: 2px solid transparent;
+  }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+  nav button:hover { color: var(--text); }
+
+  main { padding: 20px; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; cursor: pointer; transition: border-color .15s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .dot.idle, .dot.online { background: var(--green); }
+  .dot.busy { background: var(--yellow); }
+  .dot.offline { background: var(--red); }
+  .dot.scheduled { background: #a371f7; }
+  .agent-id { font-family: var(--mono); font-weight: 600; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--panel-2); color: var(--accent); border: 1px solid var(--border); }
+  .tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+  .tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--panel-2); color: var(--muted); }
+  .meta { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .meta b { color: var(--text); font-weight: 500; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  td.mono, th.mono { font-family: var(--mono); }
+
+  .status-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); }
+  .s-queued { color: var(--muted); }
+  .s-dispatched, .s-in_progress { color: var(--yellow); }
+  .s-qa_review, .s-selfcheck { color: var(--accent); }
+  .s-done, .s-qa_passed, .s-need_review { color: var(--green); }
+
+  button.act {
+    background: var(--accent); color: #0d1117; border: none;
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  button.act.ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); }
+
+  /* slide-in detail panel */
+  #detail {
+    position: fixed; top: 0; right: -480px; width: 460px; height: 100%;
+    background: var(--panel); border-left: 1px solid var(--border);
+    transition: right .2s ease; overflow-y: auto; padding: 20px; z-index: 50;
+  }
+  #detail.open { right: 0; }
+  #detail .close { float: right; cursor: pointer; color: var(--muted); font-size: 20px; }
+  #detail h2 { font-family: var(--mono); margin-top: 0; }
+  .section-title { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+  textarea.log {
+    width: 100%; height: 180px; background: #010409; color: var(--green);
+    border: 1px solid var(--border); border-radius: 6px; font-family: var(--mono);
+    font-size: 12px; padding: 8px; resize: vertical;
+  }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+
+  .progress { height: 10px; background: var(--panel-2); border-radius: 5px; overflow: hidden; margin: 8px 0 20px; }
+  .progress > div { height: 100%; background: var(--green); transition: width .3s; }
+  .wave { margin-bottom: 24px; }
+  .wave h3 { font-size: 14px; margin: 0 0 8px; }
+  .wave h3 span { color: var(--muted); font-weight: 400; }
+
+  .matrix td.cell { text-align: center; cursor: pointer; font-family: var(--mono); }
+  .matrix td.installed { color: var(--green); }
+  .matrix td.missing { color: var(--muted); }
+  .matrix td.installing { color: var(--yellow); }
+  .spinner { display:inline-block; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { color: var(--muted); padding: 30px; text-align: center; }
+  select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px; }
+
+  /* PM Agent tab */
+  #pm { display: none; height: calc(100vh - 97px); padding: 0; }
+  #pm.active { display: flex; }
+  .pm-sidebar {
+    width: 240px; flex: none; background: var(--panel);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  }
+  .pm-sidebar-head {
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pm-sidebar-head span { font-size: 13px; font-weight: 600; flex: 1; }
+  .pm-new-btn {
+    background: var(--accent); color: #0d1117; border: none;
+    padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  .pm-conv-list { flex: 1; overflow-y: auto; }
+  .pm-conv-item {
+    padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border);
+    position: relative; transition: background .1s;
+  }
+  .pm-conv-item:hover { background: var(--panel-2); }
+  .pm-conv-item.active { background: var(--panel-2); border-left: 2px solid var(--accent); }
+  .pm-conv-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pm-conv-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .pm-conv-del {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 14px; display: none;
+  }
+  .pm-conv-item:hover .pm-conv-del { display: block; }
+
+  .pm-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .pm-empty-state { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--muted); gap: 10px; }
+  .pm-empty-state p { font-size: 14px; }
+
+  .pm-chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .pm-chat-head {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: var(--panel); font-size: 14px; font-weight: 600;
+  }
+  .pm-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .pm-msg { display: flex; flex-direction: column; max-width: 82%; }
+  .pm-msg.user { align-self: flex-end; align-items: flex-end; }
+  .pm-msg.assistant { align-self: flex-start; align-items: flex-start; }
+  .pm-bubble {
+    padding: 10px 14px; border-radius: 10px; font-size: 13px; line-height: 1.55;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .pm-msg.user .pm-bubble { background: #1a3a6c; color: #e6edf3; border-radius: 10px 10px 2px 10px; }
+  .pm-msg.assistant .pm-bubble { background: var(--panel-2); color: var(--text); border-radius: 10px 10px 10px 2px; border: 1px solid var(--border); }
+  .pm-msg-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+  .pm-wave-card {
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 8px;
+    padding: 12px 14px; margin-top: 8px; max-width: 500px;
+  }
+  .pm-wave-card h4 { margin: 0 0 8px; font-size: 13px; color: var(--accent); }
+  .pm-svc { padding: 6px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .pm-svc .svc-id { font-family: var(--mono); font-weight: 600; }
+  .pm-svc .svc-desc { color: var(--muted); margin-top: 2px; }
+  .pm-svc .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .pm-svc .chip { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); }
+  .pm-wave-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .pm-approve-btn {
+    background: var(--green); color: #0d1117; border: none;
+    padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  .pm-dismiss-btn {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px;
+  }
+  .pm-created-issues { font-size: 11px; margin-top: 6px; }
+  .pm-created-issues a { color: var(--green); text-decoration: none; }
+  .pm-created-issues a:hover { text-decoration: underline; }
+
+  .pm-input-area {
+    padding: 12px 16px; border-top: 1px solid var(--border);
+    background: var(--panel); display: flex; gap: 8px; align-items: flex-end;
+  }
+  .pm-input-area textarea {
+    flex: 1; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; font-size: 13px; font-family: inherit;
+    resize: none; overflow-y: hidden; min-height: 36px; max-height: 150px; line-height: 1.4;
+    outline: none;
+  }
+  .pm-input-area textarea:focus { border-color: var(--accent); }
+  .pm-send-btn {
+    background: var(--accent); color: #0d1117; border: none;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+    flex: none; height: 36px;
+  }
+  .pm-send-btn:disabled { opacity: .5; cursor: default; }
+  .pm-status-bar { font-size: 11px; color: var(--muted); padding: 4px 16px; background: var(--panel); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Agent<span>OS</span></h1>
+  <div class="conn" id="conn"><span class="dot"></span><span id="connText">connecting…</span></div>
+</header>
+
+<nav>
+  <button data-tab="dashboard" class="active">Dashboard</button>
+  <button data-tab="queue">Queue</button>
+  <button data-tab="sprint">Sprint</button>
+  <button data-tab="tools">Tools</button>
+  <button data-tab="timeline">Timeline</button>
+  <button data-tab="workflow">Workflow</button>
+  <button data-tab="schedule">Schedule</button>
+  <button data-tab="pm">PM Agent</button>
+</nav>
+
+<main>
+  <section id="dashboard" class="tab active">
+    <div class="grid" id="agentGrid"></div>
+    <div class="empty" id="agentEmpty">No agents connected yet.</div>
+  </section>
+
+  <section id="queue" class="tab">
+    <table>
+      <thead><tr><th class="mono">Task ID</th><th>Title</th><th>Required Caps</th><th>Waiting</th><th></th></tr></thead>
+      <tbody id="queueBody"></tbody>
+    </table>
+    <div class="empty" id="queueEmpty">Queue is empty.</div>
+  </section>
+
+  <section id="sprint" class="tab">
+    <div class="progress"><div id="sprintBar" style="width:0%"></div></div>
+    <div id="sprintProgressText" class="meta"></div>
+    <div id="waves"></div>
+  </section>
+
+  <section id="tools" class="tab">
+    <div style="overflow-x:auto;">
+      <table class="matrix">
+        <thead><tr id="matrixHead"><th>Agent \ Tool</th></tr></thead>
+        <tbody id="matrixBody"></tbody>
+      </table>
+    </div>
+    <div class="section-title">Install Log</div>
+    <textarea class="log" id="toolLog" readonly></textarea>
+  </section>
+
+  <section id="timeline" class="tab">
+    <div class="section-title">Agent Timeline (last 8 hours)</div>
+    <div id="timeline-container" style="overflow-x:auto; padding:10px;">
+      <canvas id="timeline-canvas" height="200"></canvas>
+    </div>
+    <div id="timeline-tooltip" style="position:fixed; display:none; background:#000; border:1px solid var(--border); padding:6px 8px; font-size:12px; pointer-events:none; z-index:60; border-radius:4px;"></div>
+  </section>
+
+  <section id="workflow" class="tab">
+    <div class="section-title">Workflow Graph</div>
+    <div id="workflow-graph" style="width:100%; min-height:420px; border:1px solid var(--border); position:relative; border-radius:8px;">
+      <svg id="graph-svg" width="100%" height="420"></svg>
+    </div>
+    <div id="task-events-panel" style="display:none; margin-top:10px; background:#010409; padding:10px; font-family:var(--mono); font-size:12px; border:1px solid var(--border); border-radius:6px; max-height:240px; overflow-y:auto;"></div>
+  </section>
+
+  <section id="schedule" class="tab">
+    <div class="section-title">Agent Schedules</div>
+    <div id="schedule-list"></div>
+    <div class="empty" id="scheduleEmpty">No agents to schedule yet.</div>
+  </section>
+
+  <section id="pm" class="tab">
+    <div class="pm-sidebar">
+      <div class="pm-sidebar-head">
+        <span>PM Agent</span>
+        <button class="pm-new-btn" id="pmNewBtn">+ New</button>
+      </div>
+      <div class="pm-conv-list" id="pmConvList"></div>
+    </div>
+    <div class="pm-main" id="pmMain">
+      <div class="pm-empty-state" id="pmEmptyState">
+        <div style="font-size:32px">PM</div>
+        <p>Select a conversation or start a new one.</p>
+        <button class="act" id="pmNewBtn2">+ New Conversation</button>
+      </div>
+      <div class="pm-chat" id="pmChat" style="display:none;">
+        <div class="pm-chat-head" id="pmChatHead">New Conversation</div>
+        <div class="pm-messages" id="pmMessages"></div>
+        <div class="pm-status-bar" id="pmStatusBar"></div>
+        <div class="pm-input-area">
+          <textarea id="pmInput" placeholder="Describe a service or ask something..." rows="1"></textarea>
+          <button class="pm-send-btn" id="pmSendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="detail">
+  <span class="close" onclick="closeDetail()">&times;</span>
+  <div id="detailContent"></div>
+</div>
+
+<script>
+// ---------- State ----------
+const agentState = new Map();   // id -> agent object
+const taskState = new Map();    // id -> task object
+let toolsList = [];
+let currentDetailId = null;
+let activeTab = 'dashboard';
+let currentOpenTaskId = null;
+let timelineTimer = null;
+let graphTimer = null;
+
+// ---------- Helpers ----------
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+function timeAgo(ts) {
+  if (!ts) return 'never';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  return Math.floor(s / 3600) + 'h ago';
+}
+function fmtDur(sec) {
+  if (sec == null) return '—';
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll('nav button').forEach((b) => {
+  b.onclick = () => {
+    document.querySelectorAll('nav button').forEach((x) => x.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach((x) => x.classList.remove('active'));
+    b.classList.add('active');
+    activeTab = b.dataset.tab;
+    $('#' + b.dataset.tab).classList.add('active');
+    if (b.dataset.tab === 'queue') loadQueue();
+    if (b.dataset.tab === 'sprint') loadSprint();
+    if (b.dataset.tab === 'tools') renderMatrix();
+    if (b.dataset.tab === 'timeline') refreshTimeline();
+    if (b.dataset.tab === 'workflow') refreshGraph();
+    if (b.dataset.tab === 'schedule') loadSchedules();
+    if (b.dataset.tab === 'pm') loadPMTab();
+  };
+});
+
+// ---------- WebSocket ----------
+let ws;
+function connect() {
+  ws = new WebSocket(`ws://${location.host}/ws?ui=1`);
+  ws.onopen = () => { $('#conn').classList.add('online'); $('#connText').textContent = 'connected'; loadAll(); };
+  ws.onclose = () => { $('#conn').classList.remove('online'); $('#connText').textContent = 'reconnecting…'; setTimeout(connect, 3000); };
+  ws.onmessage = (ev) => {
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    handle(m);
+  };
+}
+
+function handle(m) {
+  switch (m.type) {
+    case 'AGENT_STATUS_CHANGED': {
+      const a = agentState.get(m.agent_id) || { id: m.agent_id, capabilities: [] };
+      a.status = m.status;
+      agentState.set(m.agent_id, a);
+      renderAgents();
+      break;
+    }
+    case 'HEARTBEAT_UPDATE': {
+      const a = agentState.get(m.agent_id);
+      if (a) { a.last_heartbeat = m.timestamp; renderAgents(); }
+      break;
+    }
+    case 'TASK_STATUS_CHANGED': {
+      const t = taskState.get(m.task_id) || { id: m.task_id };
+      t.status = m.status; t.assigned_agent = m.agent_id;
+      taskState.set(m.task_id, t);
+      // Reflect current task on agent cards.
+      if (m.agent_id) {
+        const a = agentState.get(m.agent_id);
+        if (a) { a.current_task = (m.status === 'done' || m.status === 'qa_review') ? null : m.task_id; }
+      }
+      renderAgents(); loadQueue(); loadSprint();
+      break;
+    }
+    case 'INSTALL_LOG': {
+      const log = $('#toolLog');
+      log.value += `[${m.agent_id}] ${m.tool}: ${m.log_line}\n`;
+      log.scrollTop = log.scrollHeight;
+      if (/installed|complete/i.test(m.log_line)) markInstalled(m.agent_id, m.tool);
+      break;
+    }
+    case 'WORKFLOW_EVENT': {
+      // Append to live event feed if that task's detail panel is open.
+      if (currentOpenTaskId === m.task_id) appendEventToPanel(m);
+      // Refresh the timeline if it's the active tab.
+      if (activeTab === 'timeline') refreshTimeline();
+      break;
+    }
+    case 'PM_MESSAGE_DONE': {
+      fetch('/api/pm/conversations').then(r => r.json()).then(convs => {
+        pmConversations = convs;
+        renderPMConvList();
+      }).catch(() => {});
+      break;
+    }
+    case 'WAVE_APPROVED': {
+      if (pmActiveConvId === m.conversation_id) {
+        if ($('#pmStatusBar')) $('#pmStatusBar').textContent = 'Wave ' + m.wave + ' approved -- ' + (m.created_issues || []).length + ' issues created.';
+      }
+      break;
+    }
+    case 'SCHEDULE_UPDATED': {
+      if (m.schedule) {
+        const a = agentState.get(m.agent_id);
+        if (a) a.schedule = m.schedule;
+      }
+      if (activeTab === 'schedule') refreshScheduleCard(m.agent_id);
+      break;
+    }
+  }
+}
+
+// ---------- Data loads ----------
+async function loadAll() {
+  const [agents, tools] = await Promise.all([
+    fetch('/api/agents').then((r) => r.json()),
+    fetch('/api/tools').then((r) => r.json())
+  ]);
+  toolsList = tools;
+  agentState.clear();
+  agents.forEach((a) => agentState.set(a.id, a));
+  renderAgents();
+  renderMatrix();
+}
+
+async function loadQueue() {
+  const rows = await fetch('/api/queue').then((r) => r.json()).catch(() => []);
+  const body = $('#queueBody'); body.innerHTML = '';
+  $('#queueEmpty').style.display = rows.length ? 'none' : 'block';
+  rows.forEach((t) => {
+    const tr = el('tr');
+    tr.innerHTML = `<td class="mono">${t.id}</td><td>${t.title || ''}</td>
+      <td>${(t.required_capabilities || []).map((c) => `<span class="tag">${c}</span>`).join(' ')}</td>
+      <td>${t.started_at ? timeAgo(t.started_at) : '—'}</td>`;
+    const td = el('td');
+    const btn = el('button', 'act ghost', 'Assign');
+    btn.onclick = () => assignTask(t.id);
+    td.appendChild(btn); tr.appendChild(td);
+    body.appendChild(tr);
+  });
+}
+
+async function loadSprint() {
+  const data = await fetch('/api/sprint/current').then((r) => r.json()).catch(() => null);
+  if (!data) return;
+  $('#sprintBar').style.width = data.progress.percent + '%';
+  $('#sprintProgressText').textContent = `${data.progress.done}/${data.progress.total} tasks done (${data.progress.percent}%)`;
+  const wrap = $('#waves'); wrap.innerHTML = '';
+  data.waves.forEach((w) => {
+    const sec = el('div', 'wave');
+    sec.appendChild(el('h3', null, `Wave ${w.wave} <span>— ${w.done}/${w.total} done</span>`));
+    const table = el('table');
+    table.innerHTML = '<thead><tr><th class="mono">ID</th><th>Title</th><th>Agent</th><th>Status</th><th>Time</th></tr></thead>';
+    const tb = el('tbody');
+    w.tasks.forEach((t) => {
+      const tr = el('tr');
+      tr.innerHTML = `<td class="mono">${t.id}</td><td>${t.title || ''}</td>
+        <td class="mono">${t.assigned_agent || '—'}</td>
+        <td><span class="status-badge s-${t.status}">${t.status}</span></td>
+        <td>${fmtDur(t.duration_seconds)}</td>`;
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb); sec.appendChild(table); wrap.appendChild(sec);
+  });
+}
+
+// ---------- Render: agents ----------
+function renderAgents() {
+  const grid = $('#agentGrid'); grid.innerHTML = '';
+  const agents = Array.from(agentState.values());
+  $('#agentEmpty').style.display = agents.length ? 'none' : 'block';
+  agents.forEach((a) => {
+    const card = el('div', 'card');
+    card.onclick = () => openDetail(a.id);
+    const caps = (a.capabilities || []).map((c) => `<span class="tag">${c}</span>`).join('');
+    let taskLine = '';
+    if (a.status === 'scheduled') {
+      const mins = a.minutes_until_active;
+      const human = (mins != null) ? `${Math.floor(mins / 60)}h ${mins % 60}m` : 'unknown';
+      taskLine = `<div class="meta">⏳ scheduled — active in <b>${human}</b></div>`;
+    } else if (a.current_task) {
+      const t = taskState.get(a.current_task);
+      taskLine = `<div class="meta">Task: <b>${a.current_task}</b>${t && t.title ? ' — ' + t.title : ''}</div>
+                  <div class="meta">On task: <b><span class="timer" data-start="${t && t.started_at || Date.now()}">0s</span></b></div>`;
+    }
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="dot ${a.status}"></span>
+        <span class="agent-id">${a.id}</span>
+        <span class="badge">${a.role || '—'}</span>
+      </div>
+      <div class="tags">${caps}</div>
+      ${taskLine}
+      <div class="meta">IP: <b>${a.machine_ip || '—'}</b></div>
+      <div class="meta">Heartbeat: <b>${timeAgo(a.last_heartbeat)}</b></div>`;
+    grid.appendChild(card);
+  });
+}
+
+// Live timers on busy cards.
+setInterval(() => {
+  document.querySelectorAll('.timer').forEach((t) => {
+    const start = parseInt(t.dataset.start, 10);
+    t.textContent = fmtDur(Math.floor((Date.now() - start) / 1000));
+  });
+  // refresh heartbeat ages
+  document.querySelectorAll('#agentGrid .card').forEach(() => {});
+}, 1000);
+
+// ---------- Detail panel ----------
+async function openDetail(id) {
+  currentDetailId = id;
+  const data = await fetch('/api/agents/' + id).then((r) => r.json());
+  const caps = (data.capabilities || []).map((c) => `<span class="tag">${c}</span>`).join('');
+  const tasks = (data.tasks || []).map((t) => {
+    const dur = t.completed_at && t.started_at ? fmtDur(Math.round((t.completed_at - t.started_at) / 1000)) : '—';
+    return `<tr><td class="mono">${t.id}</td><td>${t.title || ''}</td><td>${dur}</td><td><span class="status-badge s-${t.status}">${t.status}</span></td></tr>`;
+  }).join('');
+  const installs = (data.installs || []).map((i) => `<tr><td>${i.tool}</td><td><span class="status-badge s-${i.status === 'installed' ? 'done' : 'queued'}">${i.status}</span></td></tr>`).join('');
+
+  const toolOptions = toolsList.map((t) => `<option value="${t.name}">${t.name}</option>`).join('');
+
+  $('#detailContent').innerHTML = `
+    <h2><span class="dot ${data.status}"></span> ${data.id}</h2>
+    <div class="meta">Role: <b>${data.role || '—'}</b> · IP: <b>${data.machine_ip || '—'}</b></div>
+    <div class="meta">Status: <b>${data.status}</b> · Heartbeat: <b>${timeAgo(data.last_heartbeat)}</b></div>
+    <div class="tags" style="margin-top:8px;">${caps}</div>
+
+    <div class="btn-row">
+      <button class="act" onclick="installBaseKit('${data.id}')">Install Base Kit</button>
+      <select id="addToolSel">${toolOptions}</select>
+      <button class="act ghost" onclick="addTool('${data.id}')">Add Tool</button>
+      <button class="act ghost" onclick="alert('Restart not implemented')">Restart Agent</button>
+    </div>
+
+    <div class="section-title">Installed Tools</div>
+    <table><tbody>${installs || '<tr><td class="empty">none</td></tr>'}</tbody></table>
+
+    <div class="section-title">Last 10 Tasks</div>
+    <table><thead><tr><th class="mono">ID</th><th>Title</th><th>Dur</th><th>Status</th></tr></thead>
+    <tbody>${tasks || '<tr><td class="empty">none</td></tr>'}</tbody></table>
+
+    <div class="section-title">Live Session Log</div>
+    <textarea class="log" id="detailLog" readonly></textarea>`;
+
+  $('#detail').classList.add('open');
+}
+function closeDetail() { $('#detail').classList.remove('open'); currentDetailId = null; }
+
+// ---------- Actions ----------
+async function assignTask(taskId) {
+  const ids = Array.from(agentState.keys());
+  const choice = prompt('Assign task ' + taskId + ' to agent id:\n' + ids.join(', '));
+  if (!choice) return;
+  // Manual override is informational here; dispatch is automatic server-side.
+  alert('Manual assign requested for ' + choice + '. (Auto-dispatch handles matching.)');
+}
+
+async function installBaseKit(agentId) {
+  await fetch('/api/tools/install', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installs: [{ agent_id: agentId, tool: 'base' }] })
+  });
+}
+async function addTool(agentId) {
+  const tool = $('#addToolSel').value;
+  await fetch('/api/agents/' + agentId + '/install', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tool })
+  });
+  markInstalling(agentId, tool);
+}
+
+// ---------- Tools matrix ----------
+function renderMatrix() {
+  const head = $('#matrixHead');
+  head.innerHTML = '<th>Agent \\ Tool</th>' + toolsList.map((t) => `<th>${t.name}</th>`).join('');
+  const body = $('#matrixBody'); body.innerHTML = '';
+  Array.from(agentState.values()).forEach((a) => {
+    const tr = el('tr');
+    tr.innerHTML = `<td class="mono">${a.id}</td>`;
+    toolsList.forEach((t) => {
+      const has = (a.capabilities || []).includes(t.capability);
+      const td = el('td', 'cell ' + (has ? 'installed' : 'missing'), has ? '✓' : '–');
+      td.id = `cell-${a.id}-${t.name}`;
+      if (!has) td.onclick = () => { addToolDirect(a.id, t.name); };
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+}
+async function addToolDirect(agentId, tool) {
+  markInstalling(agentId, tool);
+  await fetch('/api/agents/' + agentId + '/install', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tool })
+  });
+}
+function markInstalling(agentId, tool) {
+  const cell = document.getElementById(`cell-${agentId}-${tool}`);
+  if (cell) { cell.className = 'cell installing'; cell.innerHTML = '<span class="spinner">◌</span>'; }
+}
+function markInstalled(agentId, tool) {
+  const cell = document.getElementById(`cell-${agentId}-${tool}`);
+  if (cell) { cell.className = 'cell installed'; cell.textContent = '✓'; }
+}
+
+// ---------- Timeline tab ----------
+const STATUS_COLORS = {
+  in_progress: '#388bfd',
+  selfcheck: '#d29922',
+  qa_sent: '#3fb950',
+  task_done: '#3fb950',
+  failed: '#f85149'
+};
+let timelineBlocks = []; // {x,y,w,h,task_id,status,start,end}
+
+async function refreshTimeline() {
+  const data = await fetch('/api/workflow/timeline').then((r) => r.json()).catch(() => ({}));
+  drawTimeline(data);
+  if (timelineTimer) clearInterval(timelineTimer);
+  if (activeTab === 'timeline') {
+    timelineTimer = setInterval(async () => {
+      const d = await fetch('/api/workflow/timeline').then((r) => r.json()).catch(() => ({}));
+      drawTimeline(d);
+    }, 10000);
+  }
+}
+
+function drawTimeline(data) {
+  const canvas = $('#timeline-canvas');
+  const ctx = canvas.getContext('2d');
+  const agents = Object.keys(data);
+  const rowH = 40, labelW = 120, spanMs = 8 * 3600 * 1000;
+  const width = Math.max(900, canvas.parentElement.clientWidth - 20);
+  canvas.width = width;
+  canvas.height = Math.max(80, agents.length * rowH + 30);
+  timelineBlocks = [];
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '12px monospace';
+
+  const now = Date.now();
+  const start = now - spanMs;
+  const plotW = canvas.width - labelW - 10;
+  const xOf = (ts) => labelW + ((ts - start) / spanMs) * plotW;
+
+  // time axis ticks (hourly)
+  ctx.strokeStyle = '#21262d';
+  for (let h = 0; h <= 8; h++) {
+    const ts = start + h * 3600 * 1000;
+    const x = xOf(ts);
+    ctx.beginPath(); ctx.moveTo(x, 20); ctx.lineTo(x, canvas.height); ctx.stroke();
+    ctx.fillStyle = '#484f58';
+    ctx.fillText(`${8 - h}h`, x + 2, 14);
+  }
+
+  agents.forEach((agentId, i) => {
+    const y = 24 + i * rowH;
+    ctx.fillStyle = '#c9d1d9';
+    ctx.fillText(agentId, 4, y + rowH / 2);
+    (data[agentId] || []).forEach((b) => {
+      const bStart = Math.max(b.start, start);
+      const bEnd = b.end || now;
+      const x = xOf(bStart);
+      const w = Math.max(3, xOf(bEnd) - x);
+      const bh = rowH - 12;
+      ctx.fillStyle = STATUS_COLORS[b.status] || '#388bfd';
+      ctx.fillRect(x, y + 4, w, bh);
+      timelineBlocks.push({ x, y: y + 4, w, h: bh, task_id: b.task_id, status: b.status, start: b.start, end: b.end });
+    });
+  });
+}
+
+(function attachTimelineInteractions() {
+  const canvas = $('#timeline-canvas');
+  const tip = $('#timeline-tooltip');
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const hit = timelineBlocks.find((b) => mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h);
+    if (hit) {
+      const dur = ((hit.end || Date.now()) - hit.start) / 1000;
+      tip.style.display = 'block';
+      tip.style.left = (e.clientX + 12) + 'px';
+      tip.style.top = (e.clientY + 12) + 'px';
+      tip.innerHTML = `<b>${hit.task_id}</b><br>${hit.status} · ${fmtDur(Math.round(dur))}`;
+    } else { tip.style.display = 'none'; }
+  });
+  canvas.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const hit = timelineBlocks.find((b) => mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h);
+    if (hit) openTaskEvents(hit.task_id);
+  });
+})();
+
+// ---------- Workflow graph tab ----------
+const NODE_COLORS = {
+  queued: '#8b949e', dispatched: '#388bfd', in_progress: '#388bfd',
+  selfcheck: '#d29922', qa_review: '#d29922', qa_passed: '#3fb950',
+  done: '#3fb950', need_review: '#3fb950', blocked: '#f85149', failed: '#f85149'
+};
+
+async function refreshGraph() {
+  const g = await fetch('/api/workflow/graph').then((r) => r.json()).catch(() => ({ nodes: [], edges: [] }));
+  drawGraph(g);
+  if (graphTimer) clearInterval(graphTimer);
+  if (activeTab === 'workflow') {
+    graphTimer = setInterval(async () => {
+      const gg = await fetch('/api/workflow/graph').then((r) => r.json()).catch(() => null);
+      if (gg) drawGraph(gg);
+    }, 5000);
+  }
+}
+
+function drawGraph(g) {
+  const svg = $('#graph-svg');
+  const W = svg.clientWidth || svg.parentElement.clientWidth || 900;
+  const H = 420;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = '';
+
+  const waves = {};
+  g.nodes.forEach((n) => { (waves[n.wave] = waves[n.wave] || []).push(n); });
+  const waveKeys = Object.keys(waves).sort((a, b) => a - b);
+  const colW = W / (waveKeys.length + 1);
+  const pos = {};
+  waveKeys.forEach((wk, wi) => {
+    const col = waves[wk];
+    const rowH = H / (col.length + 1);
+    col.forEach((n, ni) => { pos[n.id] = { x: colW * (wi + 1), y: rowH * (ni + 1) }; });
+  });
+
+  // edges
+  g.edges.forEach((e) => {
+    const a = pos[e.from], b = pos[e.to];
+    if (!a || !b) return;
+    const line = document.createElementNS(SVGNS, 'line');
+    line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+    line.setAttribute('stroke', '#30363d'); line.setAttribute('stroke-width', '1.5');
+    svg.appendChild(line);
+  });
+
+  // nodes
+  g.nodes.forEach((n) => {
+    const p = pos[n.id];
+    const circ = document.createElementNS(SVGNS, 'circle');
+    circ.setAttribute('cx', p.x); circ.setAttribute('cy', p.y); circ.setAttribute('r', 18);
+    circ.setAttribute('fill', NODE_COLORS[n.status] || '#8b949e');
+    circ.setAttribute('stroke', '#0d1117'); circ.setAttribute('stroke-width', '2');
+    circ.style.cursor = 'pointer';
+    circ.addEventListener('click', () => openTaskEvents(n.id));
+    svg.appendChild(circ);
+
+    const label = document.createElementNS(SVGNS, 'text');
+    label.setAttribute('x', p.x); label.setAttribute('y', p.y + 34);
+    label.setAttribute('text-anchor', 'middle'); label.setAttribute('fill', '#c9d1d9');
+    label.setAttribute('font-size', '11'); label.setAttribute('font-family', 'monospace');
+    const lbl = (n.label || n.id || '').toString().slice(0, 20);
+    label.textContent = lbl;
+    svg.appendChild(label);
+
+    const idText = document.createElementNS(SVGNS, 'text');
+    idText.setAttribute('x', p.x); idText.setAttribute('y', p.y + 4);
+    idText.setAttribute('text-anchor', 'middle'); idText.setAttribute('fill', '#0d1117');
+    idText.setAttribute('font-size', '9'); idText.setAttribute('font-weight', 'bold');
+    idText.textContent = (n.id || '').toString().slice(0, 6);
+    svg.appendChild(idText);
+  });
+
+  if (!g.nodes.length) {
+    const t = document.createElementNS(SVGNS, 'text');
+    t.setAttribute('x', W / 2); t.setAttribute('y', H / 2);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('fill', '#484f58');
+    t.textContent = 'No tasks yet';
+    svg.appendChild(t);
+  }
+}
+
+async function openTaskEvents(taskId) {
+  currentOpenTaskId = taskId;
+  const events = await fetch('/api/workflow/events/' + taskId).then((r) => r.json()).catch(() => []);
+  const panel = $('#task-events-panel');
+  panel.style.display = 'block';
+  panel.innerHTML = `<div style="color:var(--accent)">Events for ${taskId}</div>` +
+    events.map((e) => `<div>${new Date(e.timestamp).toLocaleTimeString()} · <b>${e.event}</b> ${JSON.stringify(e.meta)}</div>`).join('') ||
+    `<div>No events for ${taskId}</div>`;
+}
+
+function appendEventToPanel(m) {
+  const panel = $('#task-events-panel');
+  if (panel.style.display === 'none') return;
+  const div = document.createElement('div');
+  div.innerHTML = `${new Date(m.timestamp || Date.now()).toLocaleTimeString()} · <b>${m.event}</b> ${JSON.stringify(m.meta || {})}`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
+
+// ---------- Schedule tab ----------
+const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+async function loadSchedules() {
+  const list = $('#schedule-list'); list.innerHTML = '';
+  const agents = Array.from(agentState.values());
+  $('#scheduleEmpty').style.display = agents.length ? 'none' : 'block';
+  for (const a of agents) {
+    const sched = await fetch('/api/agents/' + a.id + '/schedule').then((r) => r.json()).catch(() => null);
+    list.appendChild(buildScheduleCard(a.id, sched));
+  }
+}
+
+async function refreshScheduleCard(agentId) {
+  const sched = await fetch('/api/agents/' + agentId + '/schedule').then((r) => r.json()).catch(() => null);
+  const existing = document.getElementById('sched-' + agentId);
+  const card = buildScheduleCard(agentId, sched);
+  if (existing) existing.replaceWith(card);
+  else $('#schedule-list').appendChild(card);
+}
+
+function buildScheduleCard(agentId, sched) {
+  sched = sched || { enabled: false, timezone: 'UTC', windows: [], selfcheck_enabled: true, selfcheck_max_attempts: 2, token_budget_per_task: 50000 };
+  const windows = typeof sched.windows === 'string' ? JSON.parse(sched.windows || '[]') : (sched.windows || []);
+  const enabled = !!sched.enabled;
+  const scEnabled = sched.selfcheck_enabled === undefined ? true : !!sched.selfcheck_enabled;
+
+  const card = el('div', 'card');
+  card.id = 'sched-' + agentId;
+  card.style.cursor = 'default';
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="agent-id">${agentId}</span>
+      <label style="margin-left:auto; font-size:12px;">
+        <input type="checkbox" class="sc-enabled" ${enabled ? 'checked' : ''}/> enabled
+      </label>
+    </div>
+    <div class="meta">Timezone: <input class="sc-tz" value="${sched.timezone || 'UTC'}" style="background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:3px;"/></div>
+    <div class="meta" style="margin-top:6px;">
+      Self-check: <input type="checkbox" class="sc-self" ${scEnabled ? 'checked' : ''}/>
+      Max attempts:
+      <select class="sc-max">
+        ${[1, 2, 3].map((n) => `<option value="${n}" ${Number(sched.selfcheck_max_attempts) === n ? 'selected' : ''}>${n}</option>`).join('')}
+      </select>
+      Token budget: <input class="sc-budget" type="number" value="${sched.token_budget_per_task || 50000}" style="width:90px; background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:3px;"/>
+    </div>
+    <div class="section-title">Work windows</div>
+    <div class="sc-windows"></div>
+    <div class="btn-row">
+      <button class="act ghost sc-add">+ Add window</button>
+      <button class="act sc-save">Save</button>
+    </div>`;
+
+  const winWrap = card.querySelector('.sc-windows');
+  function addWindowRow(w) {
+    const row = el('div', 'meta');
+    row.style.cssText = 'display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-bottom:4px;';
+    const selected = new Set(w.days || []);
+    row.innerHTML =
+      DAYS.map((d) => `<label class="win-day" style="font-size:10px;"><input type="checkbox" value="${d}" ${selected.has(d) ? 'checked' : ''}/>${d}</label>`).join(' ') +
+      ` from <input class="win-from" value="${w.from || '09:00'}" style="width:60px; background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:4px;"/>` +
+      ` to <input class="win-to" value="${w.to || '17:00'}" style="width:60px; background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:4px;"/>` +
+      ` <button class="act ghost win-remove">remove</button>`;
+    row.querySelector('.win-remove').onclick = () => row.remove();
+    winWrap.appendChild(row);
+  }
+  (windows.length ? windows : []).forEach(addWindowRow);
+  card.querySelector('.sc-add').onclick = () => addWindowRow({ days: ['MON', 'TUE', 'WED', 'THU', 'FRI'], from: '09:00', to: '17:00' });
+
+  function collect() {
+    const wins = Array.from(winWrap.children).map((row) => ({
+      days: Array.from(row.querySelectorAll('.win-day input:checked')).map((c) => c.value),
+      from: row.querySelector('.win-from').value,
+      to: row.querySelector('.win-to').value
+    }));
+    return {
+      enabled: card.querySelector('.sc-enabled').checked,
+      timezone: card.querySelector('.sc-tz').value || 'UTC',
+      windows: wins,
+      selfcheck_enabled: card.querySelector('.sc-self').checked,
+      selfcheck_max_attempts: Number(card.querySelector('.sc-max').value),
+      token_budget_per_task: Number(card.querySelector('.sc-budget').value)
+    };
+  }
+
+  async function save() {
+    await fetch('/api/agents/' + agentId + '/schedule', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(collect())
+    });
+  }
+  card.querySelector('.sc-save').onclick = save;
+  // Toggling enabled saves immediately.
+  card.querySelector('.sc-enabled').onchange = save;
+
+  return card;
+}
+
+// ---------- PM Agent tab ----------
+let pmConversations = [];
+let pmActiveConvId = null;
+let pmStreaming = false;
+let pmYoutrackUrl = '';
+
+
+async function loadPMTab() {
+  const [cfg, convs] = await Promise.all([
+    fetch('/api/config').then(r => r.json()).catch(() => ({})),
+    fetch('/api/pm/conversations').then(r => r.json()).catch(() => [])
+  ]);
+  pmYoutrackUrl = cfg.youtrack_url || '';
+  pmConversations = convs;
+  renderPMConvList();
+}
+
+function renderPMConvList() {
+  const list = $('#pmConvList');
+  list.innerHTML = '';
+  if (!pmConversations.length) {
+    list.innerHTML = '<div class="empty" style="padding:20px;font-size:12px;">No conversations yet.</div>';
+    return;
+  }
+  pmConversations.forEach(c => {
+    const item = el('div', 'pm-conv-item' + (c.id === pmActiveConvId ? ' active' : ''));
+    item.innerHTML = `
+      <div class="pm-conv-title">${esc(c.title || 'Untitled')}</div>
+      <div class="pm-conv-meta">${timeAgo(c.updated_at)}</div>
+      <button class="pm-conv-del" title="Delete">&times;</button>`;
+    item.querySelector('.pm-conv-del').onclick = async (e) => {
+      e.stopPropagation();
+      await fetch('/api/pm/conversations/' + c.id, { method: 'DELETE' });
+      pmConversations = pmConversations.filter(x => x.id !== c.id);
+      if (pmActiveConvId === c.id) { pmActiveConvId = null; showPMEmpty(); }
+      renderPMConvList();
+    };
+    item.onclick = () => openPMConversation(c.id);
+    list.appendChild(item);
+  });
+}
+
+async function openPMConversation(id) {
+  pmActiveConvId = id;
+  renderPMConvList();
+  const data = await fetch('/api/pm/conversations/' + id).then(r => r.json()).catch(() => null);
+  if (!data) return;
+  showPMChat(data.title);
+  const msgs = $('#pmMessages');
+  msgs.innerHTML = '';
+  (data.messages || []).forEach(m => appendPMMessage(m.role, m.content, JSON.parse(m.meta || '{}'), false));
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showPMChat(title) {
+  $('#pmEmptyState').style.display = 'none';
+  $('#pmChat').style.display = 'flex';
+  $('#pmChatHead').textContent = title || 'Conversation';
+}
+
+function showPMEmpty() {
+  $('#pmChat').style.display = 'none';
+  $('#pmEmptyState').style.display = 'flex';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function appendPMMessage(role, content, meta, scroll) {
+  const msgs = $('#pmMessages');
+  const wrap = el('div', 'pm-msg ' + role);
+
+  // Check for wave plan in meta or content
+  const wavePlan = (meta && meta.wave_plan) || parseWavePlanClient(content);
+
+  const bubble = el('div', 'pm-bubble');
+  // Strip WAVE_PLAN block from display text for assistant messages
+  let displayText = content;
+  if (role === 'assistant' && displayText.includes('WAVE_PLAN_START')) {
+    displayText = displayText.replace(/WAVE_PLAN_START[\s\S]*?WAVE_PLAN_END/g, '').trim();
+  }
+  bubble.textContent = displayText;
+
+  wrap.appendChild(bubble);
+
+  if (role === 'assistant' && wavePlan) {
+    wrap.appendChild(buildWavePlanCard(wavePlan));
+  }
+
+  const timeEl = el('div', 'pm-msg-time', new Date().toLocaleTimeString());
+  wrap.appendChild(timeEl);
+  msgs.appendChild(wrap);
+  if (scroll) msgs.scrollTop = msgs.scrollHeight;
+  return bubble;
+}
+
+function parseWavePlanClient(text) {
+  const m = text.match(/WAVE_PLAN_START([\s\S]*?)WAVE_PLAN_END/);
+  if (!m) return null;
+  try {
+    const block = m[1].trim();
+    const wave = parseInt((block.match(/wave:\s*(\d+)/) || [,1])[1]);
+    const services = [];
+    block.split(/\n\s+-\s+id:/).slice(1).forEach(part => {
+      const lines = part.split('\n');
+      const get = k => { const l = lines.find(l => l.trim().startsWith(k+':')); return l ? l.replace(new RegExp('^\\s*'+k+':\\s*'),'').trim() : ''; };
+      services.push({ id: lines[0].trim(), title: get('title'), description: get('description'), input: get('input'), output: get('output'), done_when: get('done_when'), qa_check_type: get('qa_check_type'), qa_artifact_path: get('qa_artifact_path'), qa_expected_output: get('qa_expected_output') });
+    });
+    return { wave, services };
+  } catch { return null; }
+}
+
+function buildWavePlanCard(plan) {
+  const card = el('div', 'pm-wave-card');
+  card.innerHTML = `<h4>Wave ${plan.wave} Plan — ${plan.services.length} service(s)</h4>`;
+  plan.services.forEach(s => {
+    const svc = el('div', 'pm-svc');
+    svc.innerHTML = `
+      <div class="svc-id">${esc(s.id)}</div>
+      <div class="svc-desc">${esc(s.title || s.description || '')}</div>
+      <div class="chips">
+        ${s.input ? '<span class="chip">in: '+esc(s.input.slice(0,30))+'</span>' : ''}
+        ${s.output ? '<span class="chip">out: '+esc(s.output.slice(0,30))+'</span>' : ''}
+        ${s.qa_check_type ? '<span class="chip">qa: '+esc(s.qa_check_type)+'</span>' : ''}
+      </div>`;
+    card.appendChild(svc);
+  });
+  const actions = el('div', 'pm-wave-actions');
+  const approveBtn = el('button', 'pm-approve-btn', 'Approve Wave ' + plan.wave);
+  const dismissBtn = el('button', 'pm-dismiss-btn', 'Dismiss');
+  const statusDiv = el('div', 'pm-created-issues');
+  approveBtn.onclick = async () => {
+    if (!pmActiveConvId) return;
+    approveBtn.disabled = true;
+    approveBtn.textContent = 'Creating...';
+    try {
+      const r = await fetch('/api/pm/approve', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ conversation_id: pmActiveConvId, wave_plan: plan })
+      });
+      const d = await r.json();
+      if (d.ok) {
+        approveBtn.textContent = 'Approved';
+        const ids = d.created_issues || [];
+        if (ids.length) {
+          statusDiv.innerHTML = 'Created: ' + ids.map(id => {
+            const url = pmYoutrackUrl ? pmYoutrackUrl + '/issue/' + id : '#';
+            return `<a href="${url}" target="_blank">${esc(id)}</a>`;
+          }).join(', ');
+        }
+      } else {
+        approveBtn.disabled = false; approveBtn.textContent = 'Retry';
+        statusDiv.textContent = d.error || 'error';
+      }
+    } catch(e) { approveBtn.disabled = false; approveBtn.textContent = 'Retry'; statusDiv.textContent = e.message; }
+  };
+  dismissBtn.onclick = () => card.remove();
+  actions.appendChild(approveBtn);
+  actions.appendChild(dismissBtn);
+  actions.appendChild(statusDiv);
+  card.appendChild(actions);
+  return card;
+}
+
+// New conversation
+$('#pmNewBtn').onclick = startNewPMConv;
+$('#pmNewBtn2').onclick = startNewPMConv;
+
+function startNewPMConv() {
+  pmActiveConvId = null;
+  renderPMConvList();
+  showPMChat('New Conversation');
+  $('#pmMessages').innerHTML = '';
+  $('#pmInput').value = '';
+  $('#pmInput').style.height = 'auto';
+  $('#pmStatusBar').textContent = '';
+}
+
+// Send message
+$('#pmSendBtn').onclick = pmSend;
+$('#pmInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); pmSend(); }
+});
+$('#pmInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+});
+
+async function pmSend() {
+  const input = $('#pmInput');
+  const msg = input.value.trim();
+  if (!msg || pmStreaming) return;
+  pmStreaming = true;
+  $('#pmSendBtn').disabled = true;
+  input.value = '';
+  input.style.height = 'auto';
+
+  appendPMMessage('user', msg, {}, true);
+
+  // Placeholder assistant bubble for streaming
+  const msgs = $('#pmMessages');
+  const wrap = el('div', 'pm-msg assistant');
+  const bubble = el('div', 'pm-bubble');
+  bubble.textContent = '';
+  wrap.appendChild(bubble);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  $('#pmStatusBar').textContent = 'Thinking...';
+
+  let fullText = '';
+  let convTitle = '';
+
+  try {
+    const resp = await fetch('/api/pm/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: pmActiveConvId,
+        conversation_title: msg.slice(0, 60),
+        message: msg
+      })
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const d = JSON.parse(line.slice(6));
+          if (d.type === 'chunk') {
+            fullText += d.text;
+            let display = fullText;
+            if (display.includes('WAVE_PLAN_START')) {
+              display = display.replace(/WAVE_PLAN_START[\s\S]*?WAVE_PLAN_END/g, '').trim();
+            }
+            bubble.textContent = display;
+            msgs.scrollTop = msgs.scrollHeight;
+          } else if (d.type === 'done') {
+            pmActiveConvId = d.conversation_id;
+            $('#pmStatusBar').textContent = '';
+            // Rebuild bubble with parsed wave plan
+            const wavePlan = d.wave_plan || parseWavePlanClient(fullText);
+            let display = fullText;
+            if (display.includes('WAVE_PLAN_START')) {
+              display = display.replace(/WAVE_PLAN_START[\s\S]*?WAVE_PLAN_END/g, '').trim();
+            }
+            bubble.textContent = display;
+            if (wavePlan) wrap.appendChild(buildWavePlanCard(wavePlan));
+            const t = el('div', 'pm-msg-time', new Date().toLocaleTimeString());
+            wrap.appendChild(t);
+            // Refresh sidebar
+            const convs = await fetch('/api/pm/conversations').then(r => r.json()).catch(() => []);
+            pmConversations = convs;
+            renderPMConvList();
+            // Update chat header
+            const active = convs.find(c => c.id === pmActiveConvId);
+            if (active) { showPMChat(active.title); }
+          } else if (d.type === 'error') {
+            bubble.textContent = '[Error] ' + d.error;
+            $('#pmStatusBar').textContent = '';
+          }
+        } catch {}
+      }
+    }
+  } catch(e) {
+    bubble.textContent = '[Connection error] ' + e.message;
+    $('#pmStatusBar').textContent = '';
+  }
+
+  pmStreaming = false;
+  $('#pmSendBtn').disabled = false;
+}
+
+
+// ---------- Boot ----------
+connect();
+</script>
+</body>
+</html>
