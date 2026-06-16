@@ -129,8 +129,5 @@ Write-Host "   cd $InstallDir"
 Write-Host "   node client\index.js"
 Write-Host ""
 
-$ans = Read-Host "Start agent now? (y/n)"
-if ($ans -eq "y" -or $ans -eq "Y") {
-  Write-OK "Starting agent..."
-  node client\index.js
-}
+Write-OK "Starting agent..."
+node client\index.js
