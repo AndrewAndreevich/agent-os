@@ -218,14 +218,20 @@ function sendMessage({ conversationId, conversationTitle, message, onChunk, onDo
   const os = require('os');
   const args = ['--print', '--verbose', '--output-format', 'stream-json', '--include-partial-messages'];
   let tmpPromptFile = null;
+
   if (isFirst) {
     args.push('--session-id', conv.session_id);
-    // Write system prompt to a temp file to avoid shell escaping issues on Windows
     tmpPromptFile = path.join(os.tmpdir(), `pm-prompt-${randomUUID()}.txt`);
     fs.writeFileSync(tmpPromptFile, getPMSystemPrompt(), 'utf8');
     args.push('--system-prompt-file', tmpPromptFile);
   } else {
     args.push('--resume', conv.session_id);
+    // Re-attach role reminder so context is never lost after compaction
+    const reminder = 'You are a PM agent. Decompose service definitions into waves, present WAVE_PLAN_START...WAVE_PLAN_END blocks, wait for approval before creating issues.';
+    const reminderFile = path.join(os.tmpdir(), `pm-reminder-${randomUUID()}.txt`);
+    fs.writeFileSync(reminderFile, reminder, 'utf8');
+    args.push('--append-system-prompt-file', reminderFile);
+    setTimeout(() => { try { fs.unlinkSync(reminderFile); } catch {} }, 5000);
   }
   args.push(message);
 
